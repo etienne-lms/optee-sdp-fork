@@ -22,6 +22,7 @@
 #define DECODER     (3 << 24)
 #define TRANSFORMER (4 << 24)
 #define SINK        (5 << 24)
+#define CPU         (6 << 24)
 
 /* streams type */
 #define VIDEO		(1 << 16)
@@ -33,6 +34,7 @@
 #define IS_DECODER(x)     ((x & 0xFF000000) == DECODER)
 #define IS_TRANSFORMER(x) ((x & 0xFF000000) == TRANSFORMER)
 #define IS_SINK(x)        ((x & 0xFF000000) == SINK)
+#define IS_CPU(x)         ((x & 0xFF000000) == CPU)
 
 #define IS_VIDEO(x)	      ((x & 0x00FF0000) == VIDEO)
 #define IS_AUDIO(x)       ((x & 0x00FF0000) == AUDIO)

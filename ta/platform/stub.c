@@ -21,6 +21,7 @@ struct secure_device {
 static int delta_refcount;
 static int bdisp_refcount;
 static int sti_refcount;
+static int cpu_refcount;
 
 static void delta_inc_refcount(void)
 {
@@ -52,10 +53,21 @@ static void sti_dec_refcount(void)
 	sti_refcount--;
 }
 
+static void cpu_inc_refcount(void)
+{
+	cpu_refcount++;
+}
+
+static void cpu_dec_refcount(void)
+{
+	cpu_refcount--;
+}
+
 struct secure_device stm_devices[] = {
 	{ "delta" , DECODER | VIDEO,	 &delta_inc_refcount, &delta_dec_refcount },
 	{ "bdisp" , TRANSFORMER | VIDEO, &bdisp_inc_refcount, &bdisp_dec_refcount },
-	{ "sti"   , SINK | VIDEO,		 &sti_inc_refcount,   &sti_dec_refcount   },
+	{ "sti"   , SINK | VIDEO,	 &sti_inc_refcount,   &sti_dec_refcount   },
+	{ "cpu"   , CPU,		 &cpu_inc_refcount,   &cpu_dec_refcount   },
 };
 
 struct region {
@@ -138,10 +150,13 @@ struct secure_device* platform_find_device_by_name(char *name)
 int platform_check_permissions(struct region *region, struct secure_device* device, int dir)
 {
 	if ((region->writer == 0) && (dir == DIR_WRITE))
-			return 0;
+		return 0;
 
 	if ((region->writer == device->id) && (dir == DIR_WRITE))
-			return 0;
+		return 0;
+
+	if (IS_CPU(region->writer) && (dir != DIR_WRITE) && !IS_CPU(device->id))
+		return 0;
 
 	if (IS_DECODER(region->writer) && (dir != DIR_WRITE) && IS_TRANSFORMER(device->id))
 		if (STREAM_TYPE(region->writer) == STREAM_TYPE(device->id))

@@ -118,6 +118,7 @@ static int sdp_ta_region_update(struct sdp_region *region, struct device *dev,
 	TEEC_Operation op;
 	TEEC_Result res;
 	uint32_t err_origin;
+	const char *name;
 
 	memset(&op, 0, sizeof(op));
 
@@ -129,8 +130,13 @@ static int sdp_ta_region_update(struct sdp_region *region, struct device *dev,
 	op.params[0].value.a = region->id;
 	op.params[0].value.b = add;
 
-	op.params[1].tmpref.buffer = (void *)dev->driver->name;
-	op.params[1].tmpref.size = strlen(dev->driver->name) + 1;
+	if (dev->driver)
+		name = dev->driver->name;
+	else
+		name = "cpu";
+
+	op.params[1].tmpref.buffer = (void*)name;
+	op.params[1].tmpref.size = strlen(name) + 1;
 
 	op.params[2].value.a = dir;
 
@@ -351,17 +357,11 @@ static void smaf_optee_revoke_access(void *ctx,
 	sdp_revoke_access(client, dev, addr, size, direction);
 }
 
-static bool smaf_optee_allow_cpu_access(void *ctx, enum dma_data_direction direction)
-{
-	return direction == DMA_TO_DEVICE;
-}
-
 static struct smaf_secure smaf_optee_sec = {
 	.create_ctx = smaf_optee_create_context,
 	.destroy_ctx = smaf_optee_destroy_context,
 	.grant_access = smaf_optee_grant_access,
 	.revoke_access = smaf_optee_revoke_access,
-	.allow_cpu_access = smaf_optee_allow_cpu_access,
 };
 
 /* debugfs helpers */
