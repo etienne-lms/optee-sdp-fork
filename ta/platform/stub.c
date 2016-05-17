@@ -1,6 +1,9 @@
 /*
  * stub.c
  *
+ * Copyright (C) Linaro SA 2015
+ * Author: Benjamin Gaignard <benjamin.gaignard@linaro.org> for Linaro.
+ * License terms: Lesser GNU General Public License (LGPL), version 2.1
  */
 #include <stdlib.h>
 #include <string.h>
