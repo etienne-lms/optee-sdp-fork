@@ -77,8 +77,8 @@ struct region {
 	uint64_t addr;
 	uint32_t size;
 	uint32_t writer;
-	uint32_t attached[3];
-	uint32_t direction[3];
+	uint32_t attached[4];
+	uint32_t direction[4];
 };
 
 #define MAX_REGIONS 20
