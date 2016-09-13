@@ -1,6 +1,11 @@
 #ifndef TA_SDP_H
 #define TA_SDP_H
 
+#define CFG_SMAF_MEMORY_POOL_BASE	0x7C000000
+#define CFG_SMAF_MEMORY_POOL_SIZE	0x01F00000
+#define CFG_SMAF_MEMORY_POOL_END	(CFG_SMAF_MEMORY_POOL_BASE + \
+					CFG_SMAF_MEMORY_POOL_SIZE)
+
 /* This UUID is generated with uuidgen
    the ITU-T UUID generator at http://www.itu.int/ITU-T/asn1/uuid.html */
 #define TA_SDP_UUID { 0xb9aa5f00, 0xd229, 0x11e4, \
@@ -46,5 +51,20 @@
  *		params[0].memref.size: lenght of the string
  */
 #define TA_SDP_DUMP_STATUS		3
+
+/*
+ * TA_SDP_ALLOCATE_BUFFER
+ * - TEE_PARAM_TYPE_MEMREF_INOUT
+ *		params[0].value.a: buffer physical location (out)
+ *		params[0].value.b: buffer length in bytes   (in/out)
+ */
+#define TA_SDP_ALLOCATE_BUFFER		4
+/*
+ * TA_SDP_FREE_BUFFER
+ * - TEE_PARAM_TYPE_MEMREF_INPUT
+ *		params[0].value.a: buffer physical location
+ *		params[0].value.b: unused
+ */
+#define TA_SDP_FREE_BUFFER		5
 
 #endif /*TA_SDP_H*/
