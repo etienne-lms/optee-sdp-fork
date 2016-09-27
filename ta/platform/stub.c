@@ -25,6 +25,7 @@ static int delta_refcount;
 static int bdisp_refcount;
 static int sti_refcount;
 static int cpu_refcount;
+static int tee_cpu_refcount;
 
 static void delta_inc_refcount(void)
 {
@@ -66,11 +67,22 @@ static void cpu_dec_refcount(void)
 	cpu_refcount--;
 }
 
+static void tee_cpu_inc_refcount(void)
+{
+	tee_cpu_refcount++;
+}
+
+static void tee_cpu_dec_refcount(void)
+{
+	tee_cpu_refcount--;
+}
+
 struct secure_device stm_devices[] = {
 	{ "delta" , DECODER | VIDEO,	 &delta_inc_refcount, &delta_dec_refcount },
 	{ "bdisp" , TRANSFORMER | VIDEO, &bdisp_inc_refcount, &bdisp_dec_refcount },
 	{ "sti"   , SINK | VIDEO,	 &sti_inc_refcount,   &sti_dec_refcount   },
 	{ "cpu"   , CPU,		 &cpu_inc_refcount,   &cpu_dec_refcount   },
+	{ "tee0"   , TEE_CPU,		 &tee_cpu_inc_refcount, &tee_cpu_dec_refcount   },
 };
 
 struct region {
@@ -152,6 +164,10 @@ struct secure_device* platform_find_device_by_name(char *name)
 /* return 0 if we can add the device to the region */
 int platform_check_permissions(struct region *region, struct secure_device* device, int dir)
 {
+	/*  Hack: TEE is allows to access any buffer */
+	if (IS_TEE_CPU(device->id))
+		return 0;
+
 	if ((region->writer == 0) && (dir == DIR_WRITE))
 		return 0;
 
