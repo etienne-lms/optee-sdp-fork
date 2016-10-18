@@ -19,6 +19,9 @@
 #include "sdp_platform_api.h"
 #include "string_ext.h"
 
+TEE_Result allocate_buffer(uint32_t types, TEE_Param *params);
+TEE_Result free_buffer(uint32_t param_types, TEE_Param *params);
+
 /*
  * Called when the instance of the TA is created. This is the first call in
  * the TA.
@@ -166,9 +169,9 @@ static TEE_Result update_region(uint32_t param_types, TEE_Param params[4])
 static TEE_Result dump_status(uint32_t param_types, TEE_Param params[4])
 {
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
-											   TEE_PARAM_TYPE_NONE,
-											   TEE_PARAM_TYPE_NONE,
-											   TEE_PARAM_TYPE_NONE);
+				   TEE_PARAM_TYPE_NONE,
+				   TEE_PARAM_TYPE_NONE,
+				   TEE_PARAM_TYPE_NONE);
 	if (param_types != exp_param_types) {
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
@@ -198,6 +201,10 @@ TEE_Result TA_InvokeCommandEntryPoint(void *sess_ctx, uint32_t cmd_id,
 		return update_region(param_types, params);
 	case TA_SDP_DUMP_STATUS:
 		return dump_status(param_types, params);
+	case TA_SDP_ALLOCATE_BUFFER:
+		return allocate_buffer(param_types, params);
+	case TA_SDP_FREE_BUFFER:
+		return free_buffer(param_types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
