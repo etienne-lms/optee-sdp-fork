@@ -87,7 +87,8 @@ static TEE_Result create_region(uint32_t param_types, TEE_Param params[4])
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
-	addr = params[0].value.b;
+	addr = ((uint64_t)params[0].value.a << 32) |
+		(uint64_t)params[0].value.b;
 
 	index = platform_create_region(addr, params[1].value.a);
 	if (index < 0)
