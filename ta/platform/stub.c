@@ -248,20 +248,23 @@ int platform_dump_status(char *dump, int size)
 	size -= writed;
 
 	for (i = 0; i < MAX_REGIONS; i++) {
-		if (regions[i].addr) {
-			struct region *region = &regions[i];
-			writed = snprintf(tmp, size, "region addr 0x%x size %d writer 0x%x\n", (uint32_t)region->addr, region->size, region->writer);
-			tmp += writed;
-			size -= writed;
+		struct region *region = &regions[i];
 
-			for (j = 0; j < ARRAY_SIZE(stm_devices); j++)
-				if (region->attached[j]) {
-					writed = snprintf(tmp, size, "attached 0x%x direction %d\n", region->attached[j], region->direction[j]);
-					tmp += writed;
-					size -= writed;
-				}
-		}
+		if (!region->addr)
+			continue;
 
+		writed = snprintf(tmp, size, "region addr 0x%x size %d writer 0x%x\n", (uint32_t)region->addr, region->size, region->writer);
+		tmp += writed;
+		size -= writed;
+
+		j = 0;
+		do {
+			if (!region->attached[j]) {
+				writed = snprintf(tmp, size, "attached 0x%x direction %d\n", region->attached[j], region->direction[j]);
+				tmp += writed;
+				size -= writed;
+			}
+		} while (++j < ARRAY_SIZE(stm_devices));
 	}
 	return 0;
 }
