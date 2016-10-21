@@ -32,6 +32,214 @@
 #define CMD_TRANSFORM	2
 #define CMD_DUMP	3
 
+static TEE_Result inject(uint32_t types, TEE_Param params[4])
+{
+	TEE_Result rc;
+	int sec_idx;
+	int ns_idx;
+
+	/* strict on parameter types */
+	switch (types) {
+	case TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
+			     TEE_PARAM_TYPE_MEMREF_OUTPUT,
+			     TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE):
+		ns_idx = 0;
+		sec_idx = 1;
+		break;
+	case TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
+			     TEE_PARAM_TYPE_MEMREF_INPUT,
+			     TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE):
+		sec_idx = 0;
+		ns_idx = 1;
+		break;
+	default:
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	if (params[sec_idx].memref.size < params[ns_idx].memref.size)
+		return TEE_ERROR_SHORT_BUFFER;
+
+	/* strict on memory access attributes */
+	rc = TEE_CheckMemoryAccessRights(TEE_MEMORY_ACCESS_ANY_OWNER |
+					 TEE_MEMORY_ACCESS_READ |
+					 TEE_MEMORY_ACCESS_NONSECURE,
+					 params[ns_idx].memref.buffer,
+					 params[ns_idx].memref.size);
+	if (rc != TEE_SUCCESS)
+		return rc;
+
+	rc = TEE_CheckMemoryAccessRights(TEE_MEMORY_ACCESS_ANY_OWNER |
+					 TEE_MEMORY_ACCESS_WRITE |
+					 TEE_MEMORY_ACCESS_SECURE,
+					 params[sec_idx].memref.buffer,
+					 params[sec_idx].memref.size);
+	if (rc != TEE_SUCCESS)
+		return rc;
+
+#ifdef CFG_CACHE_API
+	/*
+	 * cache invalidationis required, but flush is fine and
+	 * prevents corrupting cache line for unaligned buffer.
+	 */
+	rc = TEE_CacheFlush(params[sec_idx].memref.buffer,
+			    params[sec_idx].memref.size);
+	if (rc != TEE_SUCCESS) {
+		EMSG("TEE_CacheFlush() failed: 0x%x", rc);
+		return rc;
+	}
+#endif /* CFG_CACHE_API */
+
+	/* inject data */
+	TEE_MemMove(params[sec_idx].memref.buffer,
+		    params[ns_idx].memref.buffer,
+		    params[sec_idx].memref.size);
+
+#ifdef CFG_CACHE_API
+	/* flush data to physical memory */
+	rc = TEE_CacheFlush(params[sec_idx].memref.buffer,
+			    params[sec_idx].memref.size);
+	if (rc != TEE_SUCCESS) {
+		EMSG("TEE_CacheFlush() failed: 0x%x", rc);
+		return rc;
+	}
+#endif /* CFG_CACHE_API */
+
+	return rc;
+}
+
+static TEE_Result transform(uint32_t types, TEE_Param params[4])
+{
+	TEE_Result rc;
+	unsigned char *p;
+	size_t sz;
+
+	/* strict on parameter types */
+	switch (types) {
+	case TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
+			     TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE,
+			     TEE_PARAM_TYPE_NONE):
+		break;
+	default:
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	/* strict on memory access attributes */
+	rc = TEE_CheckMemoryAccessRights(TEE_MEMORY_ACCESS_ANY_OWNER |
+					 TEE_MEMORY_ACCESS_READ |
+					 TEE_MEMORY_ACCESS_WRITE |
+					 TEE_MEMORY_ACCESS_SECURE,
+					 params[0].memref.buffer,
+					 params[0].memref.size);
+	if (rc != TEE_SUCCESS)
+		return rc;
+
+#ifdef CFG_CACHE_API
+	/*
+	 * cache invalidationis required, but flush is fine and
+	 * prevents corrupting cache line for unaligned buffer.
+	 */
+	rc = TEE_CacheFlush(params[0].memref.buffer,
+			    params[0].memref.size);
+	if (rc != TEE_SUCCESS) {
+		EMSG("TEE_CacheFlush() failed: 0x%x", rc);
+		return rc;
+	}
+#endif /* CFG_CACHE_API */
+
+	/* transform the data */
+	p = (unsigned char *)params[0].memref.buffer;
+	sz = params[0].memref.size;
+	for (; sz; sz--, p++)
+			*p = ~(*p) + 1;
+
+#ifdef CFG_CACHE_API
+	/* flush data to physical memory */
+	rc = TEE_CacheFlush(params[0].memref.buffer,
+			    params[0].memref.size);
+	if (rc != TEE_SUCCESS) {
+		EMSG("TEE_CacheFlush() failed: 0x%x", rc);
+		return rc;
+	}
+#endif /* CFG_CACHE_API */
+
+	return rc;
+}
+
+static TEE_Result dump(uint32_t types, TEE_Param params[4])
+{
+	TEE_Result rc;
+	int sec_idx;
+	int ns_idx;
+
+	/* strict on parameter types */
+	switch (types) {
+	case TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
+			     TEE_PARAM_TYPE_MEMREF_OUTPUT,
+			     TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE):
+		sec_idx = 0;
+		ns_idx = 1;
+		break;
+	case TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
+			     TEE_PARAM_TYPE_MEMREF_INPUT,
+			     TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE):
+		sec_idx = 1;
+		ns_idx = 0;
+		break;
+	default:
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	if (params[sec_idx].memref.size < params[ns_idx].memref.size)
+		return TEE_ERROR_SHORT_BUFFER;
+
+	/* strict on memory access attributes */
+	rc = TEE_CheckMemoryAccessRights(TEE_MEMORY_ACCESS_ANY_OWNER |
+					 TEE_MEMORY_ACCESS_WRITE |
+					 TEE_MEMORY_ACCESS_NONSECURE,
+					 params[ns_idx].memref.buffer,
+					 params[ns_idx].memref.size);
+	if (rc != TEE_SUCCESS)
+		return rc;
+
+	rc = TEE_CheckMemoryAccessRights(TEE_MEMORY_ACCESS_ANY_OWNER |
+					 TEE_MEMORY_ACCESS_READ |
+					 TEE_MEMORY_ACCESS_SECURE,
+					 params[sec_idx].memref.buffer,
+					 params[sec_idx].memref.size);
+	if (rc != TEE_SUCCESS)
+		return rc;
+
+#ifdef CFG_CACHE_API
+	/*
+	 * cache invalidationis required, but flush is fine and
+	 * prevents corrupting cache line for unaligned buffer.
+	 */
+	rc = TEE_CacheFlush(params[sec_idx].memref.buffer,
+			    params[sec_idx].memref.size);
+	if (rc != TEE_SUCCESS) {
+		EMSG("TEE_CacheFlush() failed: 0x%x", rc);
+		return rc;
+	}
+#endif /* CFG_CACHE_API */
+
+	/* dump the data */
+	TEE_MemMove(params[ns_idx].memref.buffer,
+		    params[sec_idx].memref.buffer,
+		    params[sec_idx].memref.size);
+
+#ifdef CFG_CACHE_API
+	/* flush data to physical memory */
+	rc = TEE_CacheFlush(params[sec_idx].memref.buffer,
+			    params[sec_idx].memref.size);
+	if (rc != TEE_SUCCESS) {
+		EMSG("TEE_CacheFlush() failed: 0x%x", rc);
+		return rc;
+	}
+#endif /* CFG_CACHE_API */
+
+	return rc;
+}
+
 TEE_Result TA_CreateEntryPoint(void)
 {
 	return TEE_SUCCESS;
@@ -58,152 +266,14 @@ void TA_CloseSessionEntryPoint(void *ctx)
 TEE_Result TA_InvokeCommandEntryPoint(void *sess __unused,
 		uint32_t cmd, uint32_t types, TEE_Param params[4])
 {
-	TEE_Result ret __unused;
-	int sec_idx;
-	int ns_idx;
-
 	switch (cmd) {
 	case CMD_INJECT:
-		if (types == TEE_PARAM_TYPES(
-				TEE_PARAM_TYPE_MEMREF_INPUT,
-				TEE_PARAM_TYPE_MEMREF_OUTPUT,
-				TEE_PARAM_TYPE_NONE,
-				TEE_PARAM_TYPE_NONE)) {
-			sec_idx = 1;
-			ns_idx = 0;
-		} else if (types == TEE_PARAM_TYPES(
-				TEE_PARAM_TYPE_MEMREF_OUTPUT,
-				TEE_PARAM_TYPE_MEMREF_INPUT,
-				TEE_PARAM_TYPE_NONE,
-				TEE_PARAM_TYPE_NONE)) {
-			sec_idx = 0;
-			ns_idx = 1;
-		} else
-			return TEE_ERROR_BAD_PARAMETERS;
-
-		if (params[sec_idx].memref.size < params[ns_idx].memref.size)
-			return TEE_ERROR_SHORT_BUFFER;
-
-#ifdef CFG_CACHE_API
-		/*
-		 * cache invalidationis required, but flush is fine and
-		 * prevents corrupting cache line for unaligned buffer.
-		 */
-		ret = TEE_CacheFlush(params[sec_idx].memref.buffer,
-				     params[sec_idx].memref.size);
-		if (ret != TEE_SUCCESS) {
-			EMSG("TEE_CacheFlush() failed: 0x%x", ret);
-			return ret;
-		}
-#endif /* CFG_CACHE_API */
-
-		TEE_MemMove(params[sec_idx].memref.buffer,
-			    params[ns_idx].memref.buffer,
-			    params[sec_idx].memref.size);
-
-#ifdef CFG_CACHE_API
-		/* flush data to physical memory */
-		ret = TEE_CacheFlush(params[sec_idx].memref.buffer,
-				     params[sec_idx].memref.size);
-		if (ret != TEE_SUCCESS) {
-			EMSG("TEE_CacheFlush() failed: 0x%x", ret);
-			return ret;
-		}
-#endif /* CFG_CACHE_API */
-		break;
-
-	case CMD_DUMP:
-		if (types == TEE_PARAM_TYPES(
-				TEE_PARAM_TYPE_MEMREF_INPUT,
-				TEE_PARAM_TYPE_MEMREF_OUTPUT,
-				TEE_PARAM_TYPE_NONE,
-				TEE_PARAM_TYPE_NONE)) {
-			sec_idx = 0;
-			ns_idx = 1;
-		} else if (types == TEE_PARAM_TYPES(
-				TEE_PARAM_TYPE_MEMREF_OUTPUT,
-				TEE_PARAM_TYPE_MEMREF_INPUT,
-				TEE_PARAM_TYPE_NONE,
-				TEE_PARAM_TYPE_NONE)) {
-			sec_idx = 1;
-			ns_idx = 0;
-		} else
-			return TEE_ERROR_BAD_PARAMETERS;
-
-		if (params[sec_idx].memref.size < params[ns_idx].memref.size)
-			return TEE_ERROR_SHORT_BUFFER;
-
-#ifdef CFG_CACHE_API
-		/*
-		 * cache invalidationis required, but flush is fine and
-		 * prevents corrupting cache line for unaligned buffer.
-		 */
-		ret = TEE_CacheFlush(params[sec_idx].memref.buffer,
-				     params[sec_idx].memref.size);
-		if (ret != TEE_SUCCESS) {
-			EMSG("TEE_CacheFlush() failed: 0x%x", ret);
-			return ret;
-		}
-#endif /* CFG_CACHE_API */
-
-		TEE_MemMove(params[ns_idx].memref.buffer,
-			    params[sec_idx].memref.buffer,
-			    params[sec_idx].memref.size);
-
-#ifdef CFG_CACHE_API
-		/* flush data to physical memory */
-		ret = TEE_CacheFlush(params[sec_idx].memref.buffer,
-				     params[sec_idx].memref.size);
-		if (ret != TEE_SUCCESS) {
-			EMSG("TEE_CacheFlush() failed: 0x%x", ret);
-			return ret;
-		}
-#endif /* CFG_CACHE_API */
-		break;
-
+		return inject(types, params);
 	case CMD_TRANSFORM:
-		if (types != TEE_PARAM_TYPES(
-				TEE_PARAM_TYPE_MEMREF_INOUT,
-				TEE_PARAM_TYPE_NONE,
-				TEE_PARAM_TYPE_NONE,
-				TEE_PARAM_TYPE_NONE))
-			return TEE_ERROR_BAD_PARAMETERS;
-
-#ifdef CFG_CACHE_API
-		/*
-		 * cache invalidationis required, but flush is fine and
-		 * prevents corrupting cache line for unaligned buffer.
-		 */
-		ret = TEE_CacheFlush(params[0].memref.buffer, params[0].memref.size);
-		if (ret != TEE_SUCCESS) {
-			EMSG("TEE_CacheFlush() failed: 0x%x", ret);
-			return ret;
-		}
-#endif /* CFG_CACHE_API */
-
-		{
-			unsigned char *p;
-			size_t sz;
-
-			p = (unsigned char *)params[0].memref.buffer;
-			sz = params[0].memref.size;
-			for (; sz; sz--, p++)
-				*p = ~(*p) + 1;
-		}
-
-#ifdef CFG_CACHE_API
-		/* flush data to physical memory */
-		ret = TEE_CacheFlush(params[0].memref.buffer, params[0].memref.size);
-		if (ret != TEE_SUCCESS) {
-			EMSG("TEE_CacheFlush() failed: 0x%x", ret);
-			return ret;
-		}
-#endif /* CFG_CACHE_API */
-		break;
-
+		return transform(types, params);
+	case CMD_DUMP:
+		return dump(types, params);
 	default:
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
-
-	return TEE_SUCCESS;
 }
